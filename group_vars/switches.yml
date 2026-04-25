@@ -1,0 +1,7 @@
+ansible_user:             "{{ lookup('env', 'USERNAME') }}"
+ansible_password:         "{{ lookup('env', 'PASSWORD') }}"
+ansible_become_password:  "{{ lookup('env', 'ENABLE') }}"
+ansible_network_os:       ios
+ansible_connection:       network_cli
+ansible_become:           yes
+ansible_become_method:    enable

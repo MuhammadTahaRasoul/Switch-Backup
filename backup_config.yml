@@ -1,0 +1,90 @@
+---
+# =============================================================
+# Playbook  : Cisco Switch Running-Config Backup
+# Author    : Taha | CNS Engineering
+# Purpose   : SSH verify → capture running-config → write to file
+# =============================================================
+
+- name: Cisco Switch Config Backup
+  hosts: switches
+  gather_facts: false
+
+  # -----------------------------------------------
+  # VARIABLES — change backup_dir to your target path
+  # -----------------------------------------------
+  vars:
+    backup_dir: "/media/sf_My_App"
+    backup_file: "{{ backup_dir }}/conf.txt"
+    timestamp: "{{ now(fmt='%Y-%m-%d %H:%M:%S') }}"   # ← add this
+  tasks:
+
+    # ── TASK 1 ── Ensure backup directory exists on control node
+    - name: Create backup directory if not present
+      ansible.builtin.file:
+        path: "{{ backup_dir }}"
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+      run_once: true
+
+    # ── TASK 2 ── Test SSH connectivity (ping the device)
+    - name: Verify SSH connectivity to switch
+      ansible.builtin.wait_for:
+        host: "{{ ansible_host }}"
+        port: 22
+        timeout: 10
+        msg: "SSH port 22 is NOT reachable on {{ inventory_hostname }} ({{ ansible_host }})"
+      delegate_to: localhost
+
+    # ── TASK 3 ── Confirm SSH works by running a test command
+    - name: Run test command to confirm SSH session is live
+      cisco.ios.ios_command:
+        commands:
+          - show version | include uptime
+      register: ssh_test
+      failed_when: ssh_test.failed
+
+    - name: Print SSH confirmation
+      ansible.builtin.debug:
+        msg: "✅ SSH OK on {{ inventory_hostname }} — {{ ssh_test.stdout[0] }}"
+
+    # ── TASK 4 ── Capture running configuration
+    - name: Capture running configuration
+      cisco.ios.ios_command:
+        commands:
+          - show running-config
+      register: running_cfg
+
+    # ── TASK 5 ── Capture hostname from switch itself
+    - name: Get hostname from switch facts
+      cisco.ios.ios_facts:
+        gather_subset:
+          - default
+      register: switch_facts
+
+    
+
+    # ── TASK 7 ── Write formatted config to conf.txt
+    - name: Write config to backup file
+      ansible.builtin.blockinfile:
+        path: "{{ backup_file }}"
+        create: yes
+        marker: ""
+        block: |
+          ====================================================================
+          Hostname  : {{ ansible_net_hostname }}
+          Device IP : {{ ansible_host }}
+          Backed Up : {{ timestamp }}
+          ====================================================================
+
+          {{ running_cfg.stdout[0] }}
+
+          ====================================================================
+          END OF CONFIG — {{ ansible_net_hostname }}
+          ====================================================================
+
+      delegate_to: localhost
+
+    - name: Confirm backup written
+      ansible.builtin.debug:
+        msg: "📁 Config for {{ inventory_hostname }} written to {{ backup_file }}"

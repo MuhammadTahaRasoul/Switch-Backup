@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  cisco-backup:
+    # ── Build the image from your Dockerfile
+    build: .
+    
+    # ── Image name for future use (push to DockerHub, etc.)
+    image: cisco-switch-backup:1.0
+
+    volumes:
+      # Mount inventory from host → container (READ)
+      # Change IPs here on host, container sees them immediately
+      - ./hosts.yml:/ansible/inventory.yml:ro
+
+      - ./group_vars:/ansible/group_vars:ro 
+
+      # Mount backup output folder (WRITE)
+      # Files appear on your host machine after backup runs
+      - ./backups:/media/sf_My_App
+
+
+
+    # ── Remove container after it finishes (keeps things clean)
+    restart: "no"
